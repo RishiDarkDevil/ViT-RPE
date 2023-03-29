@@ -90,6 +90,8 @@ def get_args_parser():
     # dataset parameters
     parser.add_argument('--dataset_file', default='coco')
     parser.add_argument('--coco_path', type=str)
+    parser.add_argument('--max_class_id', default=90, type=int,
+                        help="The maximum class ID of the object annotated")
     parser.add_argument('--val_present', action='store_true',
                         help="If validation set is present or not")
     parser.add_argument('--coco_panoptic_path', type=str)
