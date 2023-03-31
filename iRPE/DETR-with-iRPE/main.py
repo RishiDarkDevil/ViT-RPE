@@ -126,7 +126,7 @@ def main(args):
         # imports
         from torch.utils.tensorboard import SummaryWriter
         # setting up the log writer
-        tb = SummaryWriter()
+        tb = SummaryWriter(args.output_dir)
 
     if args.frozen_weights is not None:
         assert args.masks, "Frozen training is meant for segmentation only"
