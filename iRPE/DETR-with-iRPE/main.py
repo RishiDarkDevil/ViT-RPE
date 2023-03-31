@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 
 # data and model utils
 import datasets
+from torchvision.utils import make_grid
 import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
@@ -106,6 +107,7 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
+    parser.add_argument('--tensorboard', action='store_true')
     parser.add_argument('--num_workers', default=4, type=int)
 
     # distributed training parameters
@@ -118,6 +120,13 @@ def get_args_parser():
 def main(args):
     utils.init_distributed_mode(args)
     print("git:\n  {}\n".format(utils.get_sha()))
+
+    # setup tensorboard for logging training stats
+    if args.tensorboard:
+        # imports
+        from torch.utils.tensorboard import SummaryWriter
+        # setting up the log writer
+        tb = SummaryWriter()
 
     if args.frozen_weights is not None:
         assert args.masks, "Frozen training is meant for segmentation only"
@@ -135,7 +144,7 @@ def main(args):
     model, criterion, postprocessors = build_model(args)
     model.to(device)
 
-    # set model for distributed training, but unfortunately it uses DDP which is sometimes slow
+    # set model for distributed training, DDP
     model_without_ddp = model
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
@@ -170,9 +179,11 @@ def main(args):
         if args.val_present:
             sampler_val = torch.utils.data.SequentialSampler(dataset_val)
 
+    # pulls the data into batches
     batch_sampler_train = torch.utils.data.BatchSampler(
         sampler_train, args.batch_size, drop_last=True)
 
+    # the dataloaders
     data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
                                    collate_fn=utils.collate_fn, num_workers=args.num_workers)
     if args.val_present:
@@ -204,6 +215,13 @@ def main(args):
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
+
+    if args.tensorboard:
+        images, _ = next(iter(data_loader_train))
+        grid = make_grid(images)
+        tb.add_image("images", grid)
+        tb.add_graph(model_without_ddp, images)
+
 
     if args.eval and args.val_present:
         test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
@@ -245,9 +263,15 @@ def main(args):
                          'epoch': epoch,
                          'n_parameters': n_parameters}
         else:
+
             log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                         'epoch': epoch,
                         'n_parameters': n_parameters}
+
+        # logging stats in tensorboard
+        if args.tensorboard:
+            for k, v in train_stats.items():
+                tb.add_scalar(k, v, epoch)
 
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:
@@ -268,6 +292,10 @@ def main(args):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
+
+    # close tensorboard
+    if args.tensorboard:
+        tb.close()
 
 
 if __name__ == '__main__':
