@@ -223,7 +223,7 @@ def main(args):
         samples, _ = next(iter(data_loader_train))
         grid = make_grid(samples.tensors)
         tb.add_image("images", grid)
-        tb.add_graph(model_without_ddp, images)
+        tb.add_graph(model_without_ddp, samples)
 
 
     if args.eval and args.val_present:
