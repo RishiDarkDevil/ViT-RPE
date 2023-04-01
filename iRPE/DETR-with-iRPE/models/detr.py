@@ -315,10 +315,14 @@ def build(args):
     if args.dataset_file == "coco_panoptic":
         # for panoptic, we just add a num_classes that is large enough to hold
         # max_obj_id + 1, but the exact value doesn't really matter
-        num_classes = 250
+        num_classes = 250 ####### GOT TO FIX THIS
     device = torch.device(args.device)
 
     backbone = build_backbone(args)
+
+    # do not train resnet
+    if not args.train_backbone:
+        backbone.eval()
 
     transformer = build_transformer(args)
 
@@ -354,7 +358,7 @@ def build(args):
     if args.masks:
         postprocessors['segm'] = PostProcessSegm()
         if args.dataset_file == "coco_panoptic":
-            is_thing_map = {i: i <= 90 for i in range(201)}
+            is_thing_map = {i: i <= 90 for i in range(201)} ##### GOT TO FIX FOR CUSTOM DATASET
             postprocessors["panoptic"] = PostProcessPanoptic(is_thing_map, threshold=0.85)
 
     return model, criterion, postprocessors
