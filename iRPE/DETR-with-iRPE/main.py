@@ -220,8 +220,8 @@ def main(args):
             args.start_epoch = checkpoint['epoch'] + 1
 
     if args.tensorboard:
-        images, _ = next(iter(data_loader_train))
-        grid = make_grid(images)
+        samples, _ = next(iter(data_loader_train))
+        grid = make_grid(samples.tensors)
         tb.add_image("images", grid)
         tb.add_graph(model_without_ddp, images)
 
