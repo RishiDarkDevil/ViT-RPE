@@ -117,6 +117,11 @@ def get_args_parser():
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
+
+    # debug mode
+    parser.add_argument('--show_grads', default=False, action='store_true',
+                        help='prints the gradients while training, useful for debugging')
+
     return parser
 
 
@@ -247,6 +252,8 @@ def main(args):
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
             args.clip_max_norm)
+        if args.show_grads:
+            print([p.grad for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad])
         lr_scheduler.step()
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
