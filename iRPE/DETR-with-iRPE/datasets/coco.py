@@ -33,7 +33,7 @@ READ_IMAGE_IF_EXISTED = True
 def my_open(root, fname):
     global READ_IMAGE_IF_EXISTED
     '''
-    root:  xxx/train2017
+    root:  xxx/train
     fname: file
     '''
     root = str(root)

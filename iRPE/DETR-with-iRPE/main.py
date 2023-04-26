@@ -251,9 +251,7 @@ def main(args):
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm)
-        if args.show_grads:
-            print([p.grad for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad])
+            args.clip_max_norm, args.show_grads)    
         lr_scheduler.step()
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
