@@ -10,6 +10,7 @@ from typing import List, Any
 import torch
 import torch.utils.data
 import torchvision
+from pycocotools.coco import COCO
 from pycocotools import mask as coco_mask
 from PIL import Image
 from io import BytesIO
@@ -18,6 +19,8 @@ import zipfile
 
 import datasets.transforms as T
 
+from torchvision.datasets import VisionDataset
+from typing import Any, Callable, Optional, Tuple, List
 
 ZIPS = dict()
 
@@ -59,17 +62,70 @@ def my_Image_open(root, fname):
     iob = BytesIO(my_open(root, fname))
     return Image.open(iob)
 
+class CocoDetectionOptim(VisionDataset):
+    """`MS Coco Detection <https://cocodataset.org/#detection-2016>`_ Dataset.
 
-class CocoDetection(torchvision.datasets.CocoDetection):
-    def __init__(self, img_folder, ann_file, transforms, return_masks):
-        super(CocoDetection, self).__init__(img_folder, ann_file)
+    Args:
+        root (string): Root directory where images are downloaded to.
+        annot (string): Path to json ** annotations directory **.
+        transform (callable, optional): A function/transform that  takes in an PIL image
+            and returns a transformed version. E.g, ``transforms.ToTensor``
+        target_transform (callable, optional): A function/transform that takes in the
+            target and transforms it.
+        transforms (callable, optional): A function/transform that takes input sample and its target as entry
+            and returns a transformed version.
+    """
+
+    def __init__(
+        self,
+        root: str,
+        # annFile: str,
+        annot: str,
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None,
+        transforms: Optional[Callable] = None,
+    ) -> None:
+        super().__init__(root, transforms, transform, target_transform)
+        # from pycocotools.coco import COCO
+
+        # self.coco = COCO(annFile)
+        self.ann_paths = [os.path.join(annot, f) for f in os.listdir(annot) if f.endswith('.json')]
+        # self.ids = list(sorted(self.coco.imgs.keys()))
+
+    def _load_image(self, index: int) -> Image.Image:
+        coco = COCO(self.ann_paths[index])
+        id = list(coco.imgs.keys())[0]
+        path = coco.loadImgs(id)[0]["file_name"]
+        return Image.open(os.path.join(self.root, path)).convert("RGB")
+
+    def _load_target(self, index: int) -> List[Any]:
+        coco = COCO(self.ann_paths[index])
+        id = list(coco.imgs.keys())[0]
+        return coco.loadAnns(coco.getAnnIds(id))
+
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        # id = self.ids[index]
+        image = self._load_image(index)
+        target = self._load_target(index)
+
+        if self.transforms is not None:
+            image, target = self.transforms(image, target)
+
+        return image, target
+
+    def __len__(self) -> int:
+        return len(self.ann_paths)
+
+
+class CocoDetection(CocoDetectionOptim):
+    def __init__(self, img_folder, ann_folder, transforms, return_masks):
+        super(CocoDetection, self).__init__(img_folder, ann_folder)
         self._transforms = transforms
         self.prepare = ConvertCocoPolysToMask(return_masks)
 
     def __getitem__(self, idx):
-        id = self.ids[idx]
-        img = self._load_image(id)
-        target = self._load_target(id)
+        img = self._load_image(idx)
+        target = self._load_target(idx)
 
         if self.transforms is not None:
             img, target = self.transforms(img, target)
@@ -81,12 +137,16 @@ class CocoDetection(torchvision.datasets.CocoDetection):
             img, target = self._transforms(img, target)
         return img, target
 
-    def _load_image(self, id: int) -> Image.Image:
-        path = self.coco.loadImgs(id)[0]["file_name"]
+    def _load_image(self, index: int) -> Image.Image:
+        coco = COCO(self.ann_paths[index])
+        id = list(coco.imgs.keys())[0]
+        path = coco.loadImgs(id)[0]["file_name"]
         return my_Image_open(self.root, path).convert('RGB')
 
-    def _load_target(self, id) -> List[Any]:
-        return self.coco.loadAnns(self.coco.getAnnIds(id))
+    def _load_target(self, index) -> List[Any]:
+        coco = COCO(self.ann_paths[index])
+        id = list(coco.imgs.keys())[0]
+        return coco.loadAnns(coco.getAnnIds(id))
 
 
 def convert_coco_poly_to_mask(segmentations, height, width):
@@ -207,10 +267,10 @@ def build(image_set, args):
     root = Path(args.coco_path)
     assert root.exists(), f'provided COCO path {root} does not exist'
     PATHS = {
-        "train": (root / "train", root / "annotations" / f'train_annotations.json'),
-        "val": (root / "val", root / "annotations" / f'val_annotations.json'),
+        "train": (root / "train", root / "annotations"),
+        "val": (root / "val", root / "annotations"),
     }
 
-    img_folder, ann_file = PATHS[image_set]
-    dataset = CocoDetection(img_folder, ann_file, transforms=make_coco_transforms(image_set), return_masks=args.masks)
+    img_folder, ann_folder = PATHS[image_set]
+    dataset = CocoDetection(img_folder, ann_folder, transforms=make_coco_transforms(image_set), return_masks=args.masks)
     return dataset
