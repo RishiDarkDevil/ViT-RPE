@@ -130,7 +130,8 @@ class CocoDetection(CocoDetectionOptim):
         if self.transforms is not None:
             img, target = self.transforms(img, target)
 
-        image_id = self.ids[idx]
+        coco = COCO(self.ann_paths[idx])
+        image_id = list(coco.imgs.keys())[0]
         target = {'image_id': image_id, 'annotations': target}
         img, target = self.prepare(img, target)
         if self._transforms is not None:
