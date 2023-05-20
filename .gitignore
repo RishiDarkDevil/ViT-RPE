@@ -1,4 +1,5 @@
 checkpoint/
+Data-Generated/
 *.pyc
 /*.log
 *ptm
